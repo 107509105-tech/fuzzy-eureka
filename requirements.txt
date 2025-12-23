@@ -1,0 +1,23 @@
+# LLM and API
+openai>=1.0.0
+
+# PDF Processing
+pdf2image>=1.16.0
+Pillow>=10.0.0
+
+# Vector Database
+pymilvus>=2.3.0
+
+# Embeddings
+sentence-transformers>=2.2.0
+torch>=2.0.0
+
+# Web Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+jinja2>=3.1.2
+
+# Utilities
+numpy>=1.24.0
+tqdm>=4.66.0
