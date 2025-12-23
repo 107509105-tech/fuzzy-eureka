@@ -1,0 +1,298 @@
+/* 全域樣式 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 20px;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+}
+
+/* 標題區域 */
+header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 40px;
+    text-align: center;
+}
+
+header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+}
+
+.subtitle {
+    font-size: 1.1rem;
+    opacity: 0.9;
+}
+
+/* 統計欄 */
+.stats-bar {
+    display: flex;
+    justify-content: space-around;
+    padding: 20px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-label {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.stat-value {
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: #667eea;
+    margin-left: 5px;
+}
+
+/* 主要內容區域 */
+.main-content {
+    padding: 40px;
+}
+
+section {
+    margin-bottom: 40px;
+}
+
+h2 {
+    color: #333;
+    margin-bottom: 20px;
+    font-size: 1.8rem;
+    border-left: 4px solid #667eea;
+    padding-left: 15px;
+}
+
+/* 上傳區域 */
+.upload-area {
+    border: 3px dashed #667eea;
+    border-radius: 15px;
+    padding: 60px 40px;
+    text-align: center;
+    background: #f8f9ff;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.upload-area:hover {
+    background: #f0f2ff;
+    border-color: #764ba2;
+}
+
+.upload-area.drag-over {
+    background: #e8ebff;
+    border-color: #764ba2;
+    transform: scale(1.02);
+}
+
+.upload-icon {
+    font-size: 4rem;
+    margin-bottom: 15px;
+}
+
+.upload-area p {
+    color: #6c757d;
+    margin-bottom: 20px;
+}
+
+/* 按鈕樣式 */
+.btn {
+    padding: 12px 30px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+/* 問答區域 */
+.query-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+#question-input {
+    width: 100%;
+    padding: 15px;
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-family: inherit;
+    resize: vertical;
+    transition: border-color 0.3s ease;
+}
+
+#question-input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+/* 狀態訊息 */
+.status-message {
+    margin-top: 15px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-weight: 500;
+    display: none;
+}
+
+.status-message.loading {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeeba;
+}
+
+.status-message.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.status-message.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+/* 結果區域 */
+.results-section {
+    border-top: 2px solid #e9ecef;
+    padding-top: 40px;
+}
+
+.answer-box, .sources-box {
+    background: #f8f9fa;
+    padding: 25px;
+    border-radius: 12px;
+    margin-bottom: 25px;
+}
+
+.answer-box h3, .sources-box h3 {
+    color: #667eea;
+    margin-bottom: 15px;
+    font-size: 1.4rem;
+}
+
+.answer-content {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    line-height: 1.8;
+    color: #333;
+}
+
+.answer-content p {
+    margin-bottom: 10px;
+}
+
+/* 來源卡片網格 */
+.sources-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.source-card {
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.source-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+}
+
+.source-image {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.source-info {
+    padding: 15px;
+}
+
+.source-title {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.source-page {
+    color: #6c757d;
+    font-size: 0.9rem;
+    margin-bottom: 5px;
+}
+
+.source-similarity {
+    color: #667eea;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+/* 響應式設計 */
+@media (max-width: 768px) {
+    body {
+        padding: 10px;
+    }
+
+    header h1 {
+        font-size: 2rem;
+    }
+
+    .main-content {
+        padding: 20px;
+    }
+
+    .stats-bar {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .sources-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .upload-area {
+        padding: 40px 20px;
+    }
+}
