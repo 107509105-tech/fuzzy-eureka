@@ -1,241 +1,490 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF RAG 問答系統</title>
-    <link rel="stylesheet" href="/static/style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RAG 文件問答</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: rgba(255, 255, 255, 0.04);
+      --panel: rgba(255, 255, 255, 0.06);
+      --border: rgba(255, 255, 255, 0.12);
+      --accent: #7dd3fc;
+      --accent-strong: #22d3ee;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --success: #22c55e;
+      --error: #ef4444;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
+      background: radial-gradient(circle at 20% 20%, rgba(34, 211, 238, 0.08), transparent 25%),
+                  radial-gradient(circle at 80% 0%, rgba(248, 113, 113, 0.06), transparent 22%),
+                  linear-gradient(135deg, #0b1120 0%, #0f172a 40%, #0b1120 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .page {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 48px 20px 64px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .title-block h1 {
+      margin: 0 0 6px;
+      font-size: 28px;
+      letter-spacing: -0.02em;
+    }
+
+    .title-block p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .badge {
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--panel);
+      color: var(--accent);
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(6px);
+    }
+
+    form {
+      display: grid;
+      gap: 12px;
+    }
+
+    label {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      padding: 14px;
+      background: #0b1222;
+      color: var(--text);
+      font-size: 15px;
+      resize: vertical;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.15);
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .controls input[type="number"],
+    .controls select {
+      width: 160px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #0b1222;
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 14px;
+    }
+
+    .controls input[type="number"] {
+      width: 120px;
+    }
+
+    select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.15);
+    }
+
+    button {
+      border: none;
+      background: linear-gradient(120deg, var(--accent) 0%, var(--accent-strong) 60%, #38bdf8 100%);
+      color: #0b1120;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      padding: 12px 18px;
+      border-radius: 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 12px 28px rgba(34, 211, 238, 0.3);
+      transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+    }
+
+    button:hover { transform: translateY(-1px); box-shadow: 0 16px 34px rgba(34, 211, 238, 0.36); }
+    button:active { transform: translateY(0); box-shadow: 0 10px 24px rgba(34, 211, 238, 0.25); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+
+    .status {
+      margin-top: 4px;
+      font-size: 14px;
+      color: var(--muted);
+      min-height: 20px;
+    }
+
+    .status.error { color: var(--error); }
+    .status.success { color: var(--success); }
+
+    .answer-block, .sources-block {
+      margin-top: 20px;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 0 0 10px;
+      letter-spacing: -0.01em;
+    }
+
+    .answer-container {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    @media (min-width: 768px) {
+      .answer-container {
+        grid-template-columns: 1fr 300px;
+      }
+    }
+
+    .answer-box {
+      background: #0b1222;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      min-height: 80px;
+      line-height: 1.6;
+      color: var(--text);
+    }
+
+    .answer-images {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .answer-image {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #0b1222;
+      object-fit: contain;
+      max-height: 200px;
+    }
+
+    .sources-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+    }
+
+    .source-card {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+      background: #0b1222;
+      display: grid;
+      gap: 8px;
+    }
+
+    .source-image {
+      width: 100%;
+      max-height: 260px;
+      object-fit: contain;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #0b1222;
+    }
+
+    .source-meta {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .pill {
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+    }
+
+    .summary {
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    footer {
+      margin-top: 36px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>PDF RAG 問答系統</h1>
-            <p class="subtitle">基於 Gemma 3 和 BGE-M3 的智能文件問答</p>
-        </header>
+  <div class="page">
+    <header>
+      <div class="title-block">
+        <h1>RAG 文件問答面板</h1>
+        <p>直接輸入問題，即可檢索已索引的 PDF/DOCX 摘要，不需上傳檔案。</p>
+      </div>
+      <span class="badge">Milvus · BGE · FastAPI</span>
+    </header>
 
-        <div class="stats-bar">
-            <div class="stat-item">
-                <span class="stat-label">文檔數量：</span>
-                <span class="stat-value" id="total-docs">{{ stats.total_documents or 0 }}</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-label">向量維度：</span>
-                <span class="stat-value">{{ stats.vector_dim or 1024 }}</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-label">模型：</span>
-                <span class="stat-value">BGE-M3</span>
-            </div>
+    <section class="card">
+      <form id="query-form">
+        <div>
+          <label for="question">你的問題</label>
+          <textarea id="question" name="question" placeholder="例如：請說明此報告的結論與重點..." required></textarea>
         </div>
-
-        <div class="main-content">
-            <!-- 上傳區域 -->
-            <section class="upload-section">
-                <h2>上傳 PDF 文件</h2>
-                <div class="upload-area" id="upload-area">
-                    <div class="upload-icon">📄</div>
-                    <p>點擊選擇或拖放 PDF 檔案</p>
-                    <input type="file" id="file-input" accept=".pdf" hidden>
-                    <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">
-                        選擇檔案
-                    </button>
-                </div>
-                <div id="upload-status" class="status-message"></div>
-            </section>
-
-            <!-- 問答區域 -->
-            <section class="query-section">
-                <h2>提問查詢</h2>
-                <div class="query-form">
-                    <textarea
-                        id="question-input"
-                        placeholder="請輸入您的問題（支援繁體中文）..."
-                        rows="4"
-                    ></textarea>
-                    <button class="btn btn-primary" onclick="submitQuery()">
-                        送出問題
-                    </button>
-                </div>
-                <div id="query-status" class="status-message"></div>
-            </section>
-
-            <!-- 結果顯示區域 -->
-            <section class="results-section" id="results-section" style="display: none;">
-                <h2>查詢結果</h2>
-
-                <div class="answer-box">
-                    <h3>答案</h3>
-                    <div id="answer-content" class="answer-content"></div>
-                </div>
-
-                <div class="sources-box">
-                    <h3>來源頁面</h3>
-                    <div id="sources-content" class="sources-grid"></div>
-                </div>
-            </section>
+        <div class="controls">
+          <div>
+            <label for="doc-select">文件選擇</label><br />
+            <select id="doc-select" name="doc_select">
+              <option value="">所有文件</option>
+            </select>
+          </div>
+          <div>
+            <label for="doc-type">文件類型</label><br />
+            <select id="doc-type" name="doc_type">
+              <option value="">全部</option>
+              <option value="pdf">PDF</option>
+              <option value="docx">DOCX</option>
+            </select>
+          </div>
+          <div>
+            <label for="top-k">Top K</label><br />
+            <input type="number" id="top-k" name="top_k" min="1" placeholder="3" />
+          </div>
+          <button type="submit" id="submit-btn">
+            <span id="btn-label">送出查詢</span>
+          </button>
         </div>
-    </div>
+        <div id="status" class="status"></div>
+      </form>
 
-    <script>
-        // 檔案上傳處理
-        const fileInput = document.getElementById('file-input');
-        const uploadArea = document.getElementById('upload-area');
-        const uploadStatus = document.getElementById('upload-status');
+      <div class="answer-block">
+        <div class="section-title">答案</div>
+        <div class="answer-container">
+          <div id="answer" class="answer-box">尚未查詢</div>
+          <div id="answer-images" class="answer-images"></div>
+        </div>
+      </div>
 
-        fileInput.addEventListener('change', handleFileSelect);
+      <div class="sources-block">
+        <div class="section-title">來源</div>
+        <div id="sources" class="sources-grid"></div>
+      </div>
+    </section>
 
-        // 拖放支援
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('drag-over');
+    <footer>前端僅負責查詢，請先確保伺服端已完成 PDF 索引。</footer>
+  </div>
+
+  <script>
+    const form = document.getElementById('query-form');
+    const questionInput = document.getElementById('question');
+    const topkInput = document.getElementById('top-k');
+    const docSelectInput = document.getElementById('doc-select');
+    const docTypeInput = document.getElementById('doc-type');
+    const statusEl = document.getElementById('status');
+    const answerEl = document.getElementById('answer');
+    const answerImagesEl = document.getElementById('answer-images');
+    const sourcesEl = document.getElementById('sources');
+    const submitBtn = document.getElementById('submit-btn');
+    const btnLabel = document.getElementById('btn-label');
+
+    // 載入可用文件列表
+    async function loadDocuments() {
+      try {
+        const response = await fetch('/documents');
+        const data = await response.json();
+
+        if (data.status === 'success' && data.documents) {
+          data.documents.forEach(doc => {
+            const option = document.createElement('option');
+            option.value = doc.name;
+            option.textContent = `${doc.name} (${doc.type.toUpperCase()})`;
+            docSelectInput.appendChild(option);
+          });
+        }
+      } catch (err) {
+        console.error('載入文件列表失敗:', err);
+      }
+    }
+
+    // 頁面載入時獲取文件列表
+    loadDocuments();
+
+    function setStatus(message, type = '') {
+      statusEl.textContent = message || '';
+      statusEl.className = 'status' + (type ? ' ' + type : '');
+    }
+
+    function renderSources(sources) {
+      sourcesEl.innerHTML = '';
+      if (!sources || sources.length === 0) {
+        sourcesEl.innerHTML = '<div class="summary" style="color: var(--muted);">沒有來源資訊</div>';
+        return;
+      }
+
+      sources.forEach((src, idx) => {
+        const card = document.createElement('div');
+        card.className = 'source-card';
+
+        const meta = document.createElement('div');
+        meta.className = 'source-meta';
+        meta.innerHTML = [
+          `<span class="pill">#${idx + 1}</span>`,
+          src.doc_type ? `<span class="pill">${src.doc_type.toUpperCase()}</span>` : '',
+          src.doc_name ? `<span class="pill">${src.doc_name}</span>` : '',
+          src.page_num !== undefined ? `<span class="pill">第 ${src.page_num} 頁</span>` : '',
+          src.similarity !== undefined ? `<span class="pill">相似度 ${Number(src.similarity).toFixed(3)}</span>` : ''
+        ].filter(Boolean).join('');
+
+        const summary = document.createElement('div');
+        summary.className = 'summary';
+        summary.textContent = src.summary || src.text_summary || '無摘要';
+
+        card.appendChild(meta);
+        const imgUrl = src.image_url || src.image_path;
+        console.log(imgUrl)
+        if (imgUrl) {
+          const imgEl = document.createElement('img');
+          imgEl.className = 'source-image';
+          imgEl.src = imgUrl;
+          imgEl.alt = src.doc_name ? `${src.doc_name} 第 ${src.page_num ?? ''} 頁` : '來源影像';
+          imgEl.loading = 'lazy';
+          card.appendChild(imgEl);
+        }
+
+        card.appendChild(summary);
+        sourcesEl.appendChild(card);
+      });
+    }
+
+    async function doQuery(event) {
+      event.preventDefault();
+      const question = questionInput.value.trim();
+      const topKRaw = topkInput.value;
+      const docName = docSelectInput.value;
+      const docType = docTypeInput.value;
+
+      if (!question) {
+        setStatus('請先輸入問題', 'error');
+        return;
+      }
+
+      const payload = { query: question };
+      if (topKRaw) {
+        payload.top_k = Number(topKRaw);
+      }
+      if (docName) {
+        payload.doc_name = docName;
+      }
+      if (docType) {
+        payload.doc_type = docType;
+      }
+
+      submitBtn.disabled = true;
+      btnLabel.textContent = '查詢中...';
+      setStatus('正在檢索與生成答案，請稍候...');
+
+      try {
+        const response = await fetch('/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
         });
 
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('drag-over');
-        });
+        const data = await response.json();
 
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('drag-over');
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                handleFileUpload(files[0]);
-            }
-        });
-
-        function handleFileSelect(e) {
-            const file = e.target.files[0];
-            if (file) {
-                handleFileUpload(file);
-            }
+        if (!response.ok || data.status === 'error') {
+          const msg = data.error || '查詢失敗';
+          setStatus(msg, 'error');
+          answerEl.textContent = '查詢失敗';
+          sourcesEl.innerHTML = '';
+          return;
         }
 
-        async function handleFileUpload(file) {
-            if (!file.name.endsWith('.pdf')) {
-                showStatus(uploadStatus, '請選擇 PDF 檔案', 'error');
-                return;
+        answerEl.textContent = data.answer || '未取得答案';
+        renderSources(data.sources);
+
+        // 顯示答案旁的相關圖片
+        answerImagesEl.innerHTML = '';
+        if (data.sources && data.sources.length > 0) {
+          // 只顯示前3個最相關的圖片
+          const topSources = data.sources.slice(0, 3);
+          topSources.forEach((src, idx) => {
+            const imgUrl = src.image_url || src.image_path;
+            if (imgUrl) {
+              const imgEl = document.createElement('img');
+              imgEl.className = 'answer-image';
+              imgEl.src = imgUrl;
+              imgEl.alt = `相關圖片 ${idx + 1}`;
+              imgEl.loading = 'lazy';
+              imgEl.title = `${src.doc_name} - 第 ${src.page_num} 頁`;
+              answerImagesEl.appendChild(imgEl);
             }
-
-            showStatus(uploadStatus, '正在上傳和索引 PDF，請稍候...', 'loading');
-
-            const formData = new FormData();
-            formData.append('file', file);
-
-            try {
-                const response = await fetch('/upload', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    showStatus(
-                        uploadStatus,
-                        `成功！處理了 ${result.pages_processed} 頁，資料庫共有 ${result.total_docs} 個文檔`,
-                        'success'
-                    );
-                    // 更新統計數字
-                    document.getElementById('total-docs').textContent = result.total_docs;
-                } else {
-                    showStatus(uploadStatus, `錯誤：${result.detail}`, 'error');
-                }
-            } catch (error) {
-                showStatus(uploadStatus, `上傳失敗：${error.message}`, 'error');
-            }
+          });
         }
 
-        // 問題查詢處理
-        async function submitQuery() {
-            const question = document.getElementById('question-input').value.trim();
-            const queryStatus = document.getElementById('query-status');
+        setStatus('查詢完成', 'success');
+      } catch (err) {
+        console.error(err);
+        setStatus('無法連線到伺服端，請檢查服務是否啟動。', 'error');
+        answerEl.textContent = '查詢失敗';
+        sourcesEl.innerHTML = '';
+      } finally {
+        submitBtn.disabled = false;
+        btnLabel.textContent = '送出查詢';
+      }
+    }
 
-            if (!question) {
-                showStatus(queryStatus, '請輸入問題', 'error');
-                return;
-            }
-
-            showStatus(queryStatus, '正在搜尋和生成答案，請稍候...', 'loading');
-
-            try {
-                const response = await fetch('/query', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        question: question,
-                        top_k: 3
-                    })
-                });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    showStatus(queryStatus, '查詢完成！', 'success');
-                    displayResults(result);
-                } else {
-                    showStatus(queryStatus, `錯誤：${result.detail}`, 'error');
-                }
-            } catch (error) {
-                showStatus(queryStatus, `查詢失敗：${error.message}`, 'error');
-            }
-        }
-
-        // 顯示結果
-        function displayResults(result) {
-            const resultsSection = document.getElementById('results-section');
-            const answerContent = document.getElementById('answer-content');
-            const sourcesContent = document.getElementById('sources-content');
-
-            // 顯示答案
-            answerContent.innerHTML = `<p>${result.answer.replace(/\n/g, '<br>')}</p>`;
-
-            // 顯示來源
-            sourcesContent.innerHTML = '';
-            result.sources.forEach((source, index) => {
-                const sourceCard = document.createElement('div');
-                sourceCard.className = 'source-card';
-
-                const imagePath = source.image_path.split('/').pop();
-
-                sourceCard.innerHTML = `
-                    <img src="/image/${imagePath}" alt="第 ${source.page_num} 頁" class="source-image">
-                    <div class="source-info">
-                        <div class="source-title">${source.doc_name}</div>
-                        <div class="source-page">第 ${source.page_num} 頁</div>
-                        <div class="source-similarity">相似度: ${(source.similarity * 100).toFixed(1)}%</div>
-                    </div>
-                `;
-
-                sourcesContent.appendChild(sourceCard);
-            });
-
-            // 顯示結果區域
-            resultsSection.style.display = 'block';
-            resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-
-        // 狀態訊息顯示
-        function showStatus(element, message, type) {
-            element.textContent = message;
-            element.className = `status-message ${type}`;
-            element.style.display = 'block';
-
-            if (type === 'success') {
-                setTimeout(() => {
-                    element.style.display = 'none';
-                }, 5000);
-            }
-        }
-
-        // Enter 鍵送出
-        document.getElementById('question-input').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                submitQuery();
-            }
-        });
-    </script>
+    form.addEventListener('submit', doQuery);
+  </script>
 </body>
 </html>
