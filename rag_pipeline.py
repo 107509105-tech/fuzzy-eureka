@@ -4,10 +4,11 @@ RAG 檢索問答模組
 """
 import os
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 # from document_processor import pdf_to_images, get_page_info, clean_temp_images
 from pdf_image import pdf_to_images, get_page_info
 from pdf_content_extractor import PDFContentExtractor, PAGE_TYPE_IMAGE_HEAVY, PAGE_TYPE_MIXED
+from docx_content_extractor import DocxContentExtractor
 from summary_generator import SummaryGenerator
 from embedder import BGEEmbedder
 from vector_store import MilvusStore
@@ -98,7 +99,10 @@ class RAGPipeline:
             image_zoom=2.0
         )
 
-        print("\n4. 初始化向量資料庫...")
+        print("\n4. 初始化 DOCX 內容提取器...")
+        self.docx_extractor = DocxContentExtractor()
+
+        print("\n5. 初始化向量資料庫...")
         self.vector_store = MilvusStore()
         self.vector_store.create_collection(drop_existing=False)
 
@@ -189,6 +193,7 @@ class RAGPipeline:
                     "text_summary": summary,
                     "page_num": content.page_num,
                     "doc_name": doc_name,
+                    "doc_type": "pdf",
                     "image_path": rel_image_path
                 })
 
@@ -225,19 +230,159 @@ class RAGPipeline:
                 "error": str(e)
             }
 
-    def query(self, question: str, top_k: int = None) -> Dict:
+    def index_docx(self, docx_path: str) -> Dict:
+        """
+        索引單個 DOCX 文件
+
+        完整流程：
+        1. 提取 DOCX 內容（文字、表格、圖片）
+        2. 根據頁面類型決定處理方式：
+           - 文字/表格頁面 → 直接使用結構化文字
+           - 圖片頁面 → 使用 Vision LLM（如果有預覽圖）
+        3. 向量化
+        4. 存入 Milvus
+
+        Args:
+            docx_path: DOCX 檔案路徑
+
+        Returns:
+            索引結果字典，包含處理的頁數和狀態
+        """
+        print(f"\n{'='*60}")
+        print(f"開始索引 DOCX: {docx_path}")
+        print(f"{'='*60}\n")
+
+        try:
+            # Step 1: 提取 DOCX 內容
+            print("步驟 1/4: 提取 DOCX 內容（文字、表格、圖片）")
+            print("-" * 40)
+
+            doc_name = Path(docx_path).stem.replace(" ", "_")
+            page_contents = self.docx_extractor.extract(docx_path, doc_name)
+
+            if not page_contents:
+                raise ValueError("DOCX 提取失敗，未生成任何內容")
+
+            # Step 2: 生成摘要
+            print(f"\n步驟 2/4: 生成頁面摘要")
+            print("-" * 40)
+
+            summaries = []
+            vision_llm_count = 0
+
+            for i, content in enumerate(page_contents, 1):
+                print(f"\n[{i}/{len(page_contents)}] 處理內容...")
+
+                # 如果圖片很多且有預覽圖，使用 Vision LLM
+                if content.images_count > 3 and content.image_path:
+                    print(f"  → 使用 Vision LLM 處理（圖片較多: {content.images_count} 張）")
+                    summary = self.summary_generator.generate_summary(content.image_path)
+                    vision_llm_count += 1
+                else:
+                    # 使用文字內容
+                    print(f"  → 使用結構化文字（{content.page_type}）")
+                    summary = content.text
+
+                summaries.append(summary)
+                print(f"  ✓ 摘要長度: {len(summary)} 字元")
+
+            print(f"\n總結: 使用 Vision LLM: {vision_llm_count}/{len(page_contents)} 頁")
+
+            # Step 3: 向量化摘要
+            print(f"\n步驟 3/4: 向量化摘要")
+            print("-" * 40)
+            embeddings = self.embedder.encode(summaries)
+            print(f"✓ 生成 {len(embeddings)} 個向量")
+
+            # Step 4: 存入 Milvus
+            print(f"\n步驟 4/4: 存入向量資料庫")
+            print("-" * 40)
+
+            # 準備資料
+            data = []
+            for content, summary, embedding in zip(page_contents, summaries, embeddings):
+                # 轉換為相對路徑
+                rel_image_path = self._to_relative_path(content.image_path) if content.image_path else ""
+
+                data.append({
+                    "embedding": embedding,
+                    "text_summary": summary,
+                    "page_num": content.page_num,
+                    "doc_name": doc_name,
+                    "doc_type": "docx",
+                    "image_path": rel_image_path
+                })
+
+            # 插入資料
+            ids = self.vector_store.insert(data)
+            print(f"✓ 成功插入 {len(ids)} 筆資料")
+
+            # 返回結果
+            result = {
+                "status": "success",
+                "docx_path": docx_path,
+                "pages_processed": len(page_contents),
+                "vision_llm_used": vision_llm_count,
+                "ids": ids,
+                "total_docs": self.vector_store.count()
+            }
+
+            print(f"\n{'='*60}")
+            print(f"索引完成！")
+            print(f"  處理內容數: {result['pages_processed']}")
+            print(f"  Vision LLM 使用: {vision_llm_count} 頁")
+            print(f"  資料庫總文檔數: {result['total_docs']}")
+            print(f"{'='*60}\n")
+
+            return result
+
+        except Exception as e:
+            print(f"\n錯誤: 索引 DOCX 失敗 - {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "status": "error",
+                "docx_path": docx_path,
+                "error": str(e)
+            }
+
+    def index_document(self, file_path: str) -> Dict:
+        """
+        自動檢測文件類型並索引（支援 PDF 和 DOCX）
+
+        Args:
+            file_path: 文件路徑
+
+        Returns:
+            索引結果字典
+        """
+        file_ext = Path(file_path).suffix.lower()
+
+        if file_ext == ".pdf":
+            return self.index_pdf(file_path)
+        elif file_ext in [".docx", ".doc"]:
+            return self.index_docx(file_path)
+        else:
+            return {
+                "status": "error",
+                "file_path": file_path,
+                "error": f"不支援的文件類型: {file_ext}"
+            }
+
+    def query(self, question: str, top_k: int = None, doc_filter: Optional[str] = None) -> Dict:
         """
         查詢問答
 
         完整流程：
         1. 問題向量化
-        2. Milvus 相似度搜尋
+        2. Milvus 相似度搜尋（可選文件過濾）
         3. 組合檢索結果
         4. 呼叫 LLM 生成最終答案
 
         Args:
             question: 使用者問題
             top_k: 檢索文檔數量，預設使用 config.TOP_K
+            doc_filter: 文件過濾條件，例如 'doc_name == "manual"' 或 'doc_type == "pdf"'
 
         Returns:
             答案字典，包含答案文字、來源頁面和相似度分數
@@ -258,8 +403,10 @@ class RAGPipeline:
 
             # Step 2: 搜尋相關文檔
             print(f"\n步驟 2/3: 搜尋相關文檔 (top {top_k})")
+            if doc_filter:
+                print(f"  過濾條件: {doc_filter}")
             print("-" * 40)
-            search_results = self.vector_store.search(query_vector, top_k=top_k)
+            search_results = self.vector_store.search(query_vector, top_k=top_k, filter_expr=doc_filter)
 
             if not search_results:
                 return {
@@ -272,7 +419,7 @@ class RAGPipeline:
             # 顯示檢索結果
             print(f"\n找到 {len(search_results)} 個相關文檔:")
             for i, result in enumerate(search_results, 1):
-                print(f"  {i}. {result['doc_name']} - 第 {result['page_num']} 頁 "
+                print(f"  {i}. [{result.get('doc_type', 'pdf')}] {result['doc_name']} - 第 {result['page_num']} 頁 "
                       f"(相似度: {result['distance']:.4f})")
 
             # Step 3: 生成答案
@@ -294,6 +441,7 @@ class RAGPipeline:
                 rel_image_path = result["image_path"]
                 sources.append({
                     "doc_name": result["doc_name"],
+                    "doc_type": result.get("doc_type", "pdf"),
                     "page_num": result["page_num"],
                     # Provide local static URL as fallback for frontend
                     "image_path": self._to_local_static_url(rel_image_path),

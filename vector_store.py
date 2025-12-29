@@ -18,7 +18,7 @@ import config
 class MilvusStore:
     """Milvus 向量存儲管理器"""
 
-    def __init__(self, uri: str = None, collection_name: str = None):
+    def __init__(self, uri: str = None, collection_name: str = None, db_name: str = None, user: str = None, password: str = None):
         """
         初始化 Milvus 連接
 
@@ -27,17 +27,44 @@ class MilvusStore:
             collection_name: Collection 名稱，預設使用 config.COLLECTION_NAME
         """
         if uri is None:
-            uri = config.MILVUS_URI
+            uri = config.MILVUS_BASE
         if collection_name is None:
             collection_name = config.COLLECTION_NAME
+        if db_name is None:
+            db_name = config.MILVUS_DB_NAME
+        if user is None:
+            user = config.MILVUS_USER
+        if password is None:
+            password = config.MILVUS_PASSWORD
 
         self.uri = uri
         self.collection_name = collection_name
+        self.db_name = db_name
+        self.user = user
+        self.password = password
         self.collection = None
 
+
+        # connections.connect(
+        #     alias="default",
+        #     uri=uri,
+        #     db_name = db_name,
+        #     user=user,
+        #     password=password
+        # )
+
+        
+        connections.connect(
+            alias="default",
+            uri=uri,
+            db_name = db_name,
+            user=user,
+            password=password
+        )
+
         # 連接到 Milvus Lite
-        print(f"正在連接 Milvus Lite: {uri}")
-        connections.connect(uri=uri)
+        # print(f"正在連接 Milvus Lite: {uri}")
+        # connections.connect(uri=uri)
         print("Milvus 連接成功！")
 
     def create_collection(self, drop_existing: bool = False):
@@ -47,6 +74,8 @@ class MilvusStore:
         Args:
             drop_existing: 是否刪除已存在的 collection
         """
+
+
         # 檢查 collection 是否存在
         if utility.has_collection(self.collection_name):
             if drop_existing:
@@ -63,9 +92,11 @@ class MilvusStore:
         fields = [
             FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
             FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=config.VECTOR_DIM),
-            FieldSchema(name="text_summary", dtype=DataType.VARCHAR, max_length=4096),
+            # FieldSchema(name="text_summary", dtype=DataType.VARCHAR, max_length=4096),
+            FieldSchema(name="text_summary", dtype=DataType.VARCHAR, max_length=7000),
             FieldSchema(name="page_num", dtype=DataType.INT32),
             FieldSchema(name="doc_name", dtype=DataType.VARCHAR, max_length=256),
+            FieldSchema(name="doc_type", dtype=DataType.VARCHAR, max_length=16),  # pdf 或 docx
             FieldSchema(name="image_path", dtype=DataType.VARCHAR, max_length=512)
         ]
 
@@ -98,7 +129,7 @@ class MilvusStore:
 
         print("Collection 和索引建立完成！")
 
-    def insert(self, data: List[Dict]) -> List[int]:
+    def insert(self, data: List[Dict]):
         """
         插入向量資料
 
@@ -108,13 +139,14 @@ class MilvusStore:
                   - text_summary: str
                   - page_num: int
                   - doc_name: str
+                  - doc_type: str (pdf 或 docx)
                   - image_path: str
 
         Returns:
             插入的 ID 清單
         """
-        if not self.collection:
-            raise ValueError("Collection 未初始化，請先呼叫 create_collection()")
+        # if not self.collection:
+        #     raise ValueError("Collection 未初始化，請先呼叫 create_collection()")
 
         if not data:
             return []
@@ -127,6 +159,7 @@ class MilvusStore:
         text_summaries = [d["text_summary"] for d in data]
         page_nums = [d["page_num"] for d in data]
         doc_names = [d["doc_name"] for d in data]
+        doc_types = [d.get("doc_type", "pdf") for d in data]  # 預設為 pdf
         image_paths = [d["image_path"] for d in data]
 
         # 插入資料
@@ -135,13 +168,16 @@ class MilvusStore:
             text_summaries,
             page_nums,
             doc_names,
+            doc_types,
             image_paths
         ]
+
 
         insert_result = self.collection.insert(entities)
 
         # Flush 確保資料寫入
         self.collection.flush()
+        self.collection.load()
 
         print(f"插入完成！共 {len(insert_result.primary_keys)} 筆資料")
         return insert_result.primary_keys
@@ -150,7 +186,8 @@ class MilvusStore:
         self,
         query_vector: np.ndarray,
         top_k: int = None,
-        output_fields: List[str] = None
+        output_fields: List[str] = None,
+        filter_expr: str = None
     ) -> List[Dict]:
         """
         相似度搜尋
@@ -159,6 +196,7 @@ class MilvusStore:
             query_vector: 查詢向量
             top_k: 返回結果數量，預設使用 config.TOP_K
             output_fields: 要返回的欄位清單
+            filter_expr: 過濾表達式，例如 'doc_name == "manual.pdf"' 或 'doc_type == "pdf"'
 
         Returns:
             搜尋結果清單，每個元素包含 id, distance 和 entity 欄位
@@ -170,7 +208,7 @@ class MilvusStore:
             top_k = config.TOP_K
 
         if output_fields is None:
-            output_fields = ["text_summary", "page_num", "doc_name", "image_path"]
+            output_fields = ["text_summary", "page_num", "doc_name", "doc_type", "image_path"]
 
         # 載入 collection 到記憶體
         self.collection.load()
@@ -188,11 +226,12 @@ class MilvusStore:
             query_vector = query_vector.tolist()
 
         results = self.collection.search(
-            data=[query_vector],
+            data=query_vector,
             anns_field="embedding",
             param=search_params,
             limit=top_k,
-            output_fields=output_fields
+            output_fields=output_fields,
+            expr=filter_expr
         )
 
         # 格式化結果
@@ -205,6 +244,7 @@ class MilvusStore:
                     "text_summary": hit.entity.get("text_summary"),
                     "page_num": hit.entity.get("page_num"),
                     "doc_name": hit.entity.get("doc_name"),
+                    "doc_type": hit.entity.get("doc_type", "pdf"),
                     "image_path": hit.entity.get("image_path")
                 }
                 formatted_results.append(result)
@@ -258,6 +298,7 @@ def test_vector_store():
             "text_summary": "這是第一頁的摘要內容",
             "page_num": 1,
             "doc_name": "測試文件",
+            "doc_type": "pdf",
             "image_path": "/path/to/page_1.png"
         },
         {
@@ -265,6 +306,7 @@ def test_vector_store():
             "text_summary": "這是第二頁的摘要內容",
             "page_num": 2,
             "doc_name": "測試文件",
+            "doc_type": "pdf",
             "image_path": "/path/to/page_2.png"
         }
     ]
